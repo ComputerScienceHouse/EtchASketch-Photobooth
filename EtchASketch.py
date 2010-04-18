@@ -10,18 +10,18 @@ import opencv
 from pygame.locals import *
 from opencv import adaptors
 from opencv import highgui
-#import serial
+import serial
 import pygame
 
-### Global Variables ###
+### Global Constants ###
+DEFAULT_INPUT_IMAGE = 'input.jpg'
+DEFAULT_OUTPUT_HEIGHT = 480
+DEFAULT_OUTPUT_WIDTH = 640
+DEFAULT_PIXEL_SCALE = 10
+DEFAULT_SERIAL_PORT = -1
+#DEFAULT_SERIAL_PORT = '/dev/ttyUSB0'
 
-## Used for the serial connection
-#usbport = '/dev/ttyUSB0'
-#ser = serial.Serial(usbport, 9600, timeout=1)
-
-# Used for camera image capturing
-camera = highgui.cvCreateCameraCapture(0)
-fps = 30.0
+## Global Variables ###
 
 # Used by move cursor to track and display cursor movements
 etch = opencv.cvCreateImage(opencv.cvSize(640,480), opencv.IPL_DEPTH_8U, 3)
@@ -31,10 +31,10 @@ curX = 0
 curY = 0
 
 # Used by pygame for the window and image displays
-#pygame.init()
-#window = pygame.display.set_mode((640,480))
-#pygame.display.set_caption("Etch-A-Sketch")
-#screen = pygame.display.get_surface()
+pygame.init()
+window = pygame.display.set_mode((640,480))
+pygame.display.set_caption("Etch-A-Sketch")
+screen = pygame.display.get_surface()
 
 
 def displayImage(image):
@@ -49,186 +49,176 @@ def displayImage(image):
     screen.blit(pg_img, (0,0))
 
 
-def moveCursor(dx,dy):
+def send_serial(c,s=0.01):
     """
-    Move the cursor one unit in any direction.  The display is then refreshed.
+    Move the cursor one unit in any numpad direction.
 
-    @param  dx  change in x coord, 1 is right, -1 is left
-    @param  dy  change in y coord, 1 is up, -1 is down
+    @param  c  send the serial charicter c
+    @param  s  sleep time
     """
-#    global ser
-    global curX, curY
+    global ser
     
-#    # Send serial commands to etch-a-sketch
-#    numPad = [["7","4","1"],["8","5","2"],["9","6","3"]]
-#    i = dx+1
-#    j = 1-dy
-#    dir = numPad[i][j]
-#    if (dx == 1 and curX%4 == 0):
-#        time.sleep(0.01)
-#        ser.write(dir)
-#    if (dy == 1 and curY%4 == 0):
-#        time.sleep(0.01)
-#        ser.write(dir)
-#    time.sleep(0.01)
-#    ser.write(dir)
+    time.sleep(s)
+    ser.write(c)
 
-    # Draw image representation of etch-a-sketch
-    curX += dx
-    curY -= dy
+def draw(c):
+    """
+    Draw in any numpad direction to the screen.
+
+    @param c numpad number representing direction
+    """
+    global curX, curY
+    numPad = [["7","4","1"],["8","5","2"],["9","6","3"]]
+    for dy in range(len(numPad)):
+        for dx in range(len(numPad[dy])):
+            if numPad[dy][dx] is str(c):
+                curX += dx
+                curY -= dy
+
     opencv.cvSet2D(etch,curY,curX,[0,0,0])
     displayImage(etch)
 
-def parseLine(image):
+def line(length,dir=6,inv=False):
+    if (dir%3 is 0):
+        dir = dir-2
+    elif [1,4,7].contains(dir):
+        dir = dir+2
+    for i in range(length):
+        draw(dir)
+        if ser is not None:
+            send_serial(dir)
+
+def square(size,inv=False):
+    '''
+    Draw a square blip within a square.
+
+    @param size length bounding square's side
+    @param inv  inv    invert the x direction
+    '''
+    line(size,8)
+    line(size,6,inv)
+    line(size,2)
+
+def triangle(size,inv=False):
+    '''
+    Draw a triangular blip within a square.
+
+    @param size length bounding square's side
+    @param inv  inv    invert the x direction
+    '''
+    seg = ((size**2)/2)**(1/2)
+    line(seg/2,9,inv)
+    line(seg/2,3,inv)
+
+def semioct(size,inv=False):
+    '''
+    Draw a semi-octal blip within a square.  Should almost
+    look like a semi-circle.
+
+    @param size length bounding square's side
+    @param inv  inv    invert the x direction
+    '''
+    seg = 5.0+(size*4.472136) 
+    line(seg,8)
+    line(seg/2,9,inv)
+    line(seg,6,inv)
+    line(seg/2,3,inv)
+    line(seg,2)
+    
+def drawPixel(r,g,b,size,inv=False):
     """
-    Traces over an etched image, erasing the paths it has taken as it goes.
+    Draw a single pixel of the input image into a pixel of
+    specified size.
 
-    @param  image   an etched image
-    @return                 the parameter image mutated to what should be all
-                                 white
+    @param  r      red color intensity (uint8)
+    @param  g      green color intensity (uint8)
+    @param  b      blue color intensity (uint8)
+    @param  size   size of the pixel after drawn
+    @param  inv    reverse drawing direction
     """
-    x = 0
-    y = 0
-    altPaths = []
+    # red data
+    s = (r/255.0)*size
+    l = size-b/2.0
+    line(l,6,inv)
+    triangle(s,inv)
+    line(l,6,inv)
+    # blue data
+    s = (b/255.0)*size
+    l = size-b/2.0
+    line(l,4,inv)
+    semicircle(s,not inv)
+    line(l,4,inv)
+    # green data
+    s = (g/255.0)*size
+    l = size-b/2.0
+    line(l,6,inv)
+    square(s,inv)
+    line(l,6,inv)
 
-    # While loop cycles through each new point on the line
-    while True:
-        #print "X: " + str(x)
-        #print "Y: " + str(y)
-
-        # Get ranges rx, and ry to check surroundings and stay in bounds
-        rx = range(-1,2)
-        ry = range(-1,2)
-        if y-1 < 0:
-            ry = range(-y,2)
-        elif y+1 > image.height-1:
-            ry = range(-1,image.height-y)
-        if x-1 < 0:
-            rx = range(-x,2)
-        elif x+1 > image.width-1:
-            rx = range(-1,image.width-x)
-
-        # Aquire a next move by prioritizing based on direction
-        move = [0,0,255,0,0]
-        for dy in ry:
-            for dx in rx:
-                if not (dx==0 and dy==0):
-                    c = opencv.cvGet2D(image,y+dy,x+dx)[0]
-                    if c < move[2]: # Check for higher priority
-                        move[0] = x+dx
-                        move[1] = y+dy
-                        move[2] = c+abs(dy)+abs(dx)-1
-                        move[3] = dx
-                        move[4] = dy
-                    if c == 0:
-                        # Add a "tally" to all the possible paths
-                        altPaths.append([])
-
-        # Mark point so as not to return unnessicarily
-        opencv.cvSet2D(image,y,x,[255])
-
-        if move[2]<255 and not (x==image.width-1 and y==image.height-1):
-            # See if there was a winner
-            if len(altPaths)-1 < 0:
-				altPaths.append([])
-            altPaths[len(altPaths)-1].append([move[3],move[4]])
-            moveCursor(move[3],-move[4])
-            x = move[0]
-            y = move[1]
-        elif len(altPaths)>0 and not (x==image.width-1 and y==image.height-1):
-            # Otherwise backtrack to the nearest alternate path
-            altPaths[len(altPaths)-1].reverse()
-            for m in altPaths[len(altPaths)-1]:
-                moveCursor(-m[0],m[1])
-                x -= m[0]
-                y -= m[1]
-            altPaths.pop()
-        else:
-            # break if there are no alternate paths
-            break
-
-    return image
-
-def shadeImage(image):
+def drawImage(image,h,w,psize):
     """
-    Shade an image in a way that will allow it to be drawn on an
-    etch-a-sketch.
+    Draw the image as a continuous line on a surface h by w "pixels" where 
+    each continuous line representation of a pixel in image is represented
+    on the output suface using psize by psize "pixels".
 
     @param  image   an opencv image with at least 3 channels
-    @return                 the input image mutated into a shaded image
+    @param  h       integer representing the hight of the output surface
+    @param  w       integer representing the width of the output surface
+    @param  psize   ammount that each pixel in the input image is scaled up
     """
-    shaded = opencv.cvCreateImage(opencv.cvSize(image.width,image.height), opencv.IPL_DEPTH_8U, 1)
-    cont = opencv.cvCreateImage(opencv.cvSize(image.width,image.height), opencv.IPL_DEPTH_8U, 1)
+    h = h/psize
+    w = w/psize
+    size = opencv.cvSize(w,h)
+    scaled = opencv.cvCreateImage(size,8,3)
+    opencv.cvResize(image,scaled)
 
-    # Cycle through image and use simple math functions to create a new one
-    for y in range(image.height):
-        for x in range(image.width):
-            # Decrease the range of color values so image forms lines
-            c1 = (((int(opencv.cvGet2D(image,y,x)[0])/30)+2)**2)/4
-            c2 = (((int(opencv.cvGet2D(image,y,x)[1])/30)+2)**2)/4
-            c3 = (((int(opencv.cvGet2D(image,y,x)[2])/30)+2)**2)/4
+    # Draw each pixel in the image
+    for y in range(scaled.height):
+        inv = y%2
+        for x in range(scaled.width):
+            s = opencv.cvGet2D(scaled,y,x)
+            drawPixel(s[0],s[1],s[2],psize,inv)
 
-            # Turns pixel black if it is in one of the functions
-            # Radial function would be (int((((y**2)+(x**2))**.5))%c3==0)
-            if x%c1==0 or y%c2==0 or (x+y)%(2*c3)==0 or (x-y)%(2*c3)==0 or y==0 or x==image.width-1 or y==image.height-1 or x==0:
-                opencv.cvSet2D(shaded,y,x,[0])
-            else:
-                opencv.cvSet2D(shaded,y,x,[255])
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    if len(argv) <= 1:
+        im = DEFAULT_INPUT_IMAGE
+    else:
+        im = argv[1]
+    if len(argv) <= 2:
+        h = DEFAULT_OUTPUT_HEIGHT
+    else:
+        h = argv[2]
+    if len(argv) <= 3:
+        w = DEFAULT_OUTPUT_WIDTH
+    else:
+        w = argv[3]
+    if len(argv) <= 4:
+        psize = DEFAULT_PIXEL_SCALE
+    else:
+        psize = argv[4]
+    if len(argv) <= 5:
+        serialport = DEFAULT_SERIAL_PORT
+    else:
+        serialport = argv[5]
 
-    # Modify the input image to the shaded image
-    opencv.cvCvtColor(shaded, image, opencv.CV_GRAY2BGR)
+    # Open serial connection
+    global ser
+    if serialport is not -1:
+        ser = serial.Serial(serialport, 9600, timeout=1)
 
-    return image
+    # Print starting time stamp
+    print time.strftime ('Start Time: %H:%M:%S')
 
-def getImage():
-    """
-    Gets an image from the camera using opencv, and delays retrieval with
-    pygame.
+    # Load the image
+    image = highgui.cvLoadImage(im);
 
-    @return     The image retrieved from the camera.
-    """
-    pygame.time.delay(int(1000 * 1.0/fps))
-    im = highgui.cvQueryFrame(camera)
-    return im
+    # Draw the image
+    drawImage(image,h,w,psize)
+
+    # Print end time stamp
+    print time.strftime ('End Time: %H:%M:%S')
 
 if __name__ == "__main__":
-    """
-    Main method.
-
-    """
-    shotTaken = False
-    while True:
-        # Show the webcam image until the shot is taken
-        if not shotTaken:
-            im = getImage()
-
-        # Get the keydown event to start processing
-        events = pygame.event.get()
-        for event in events:
-            if event.type == KEYDOWN and not shotTaken:
-                # Take the shot and process it
-                shotTaken = True
-                
-                # Print starting time stamp
-                print time.strftime ('Start Time: %H:%M:%S')
-
-                # Shade the image
-                shaded = shadeImage(im)
-                
-                # Parse the shaded image
-                im = parseLine(shaded)
-
-                # Print end time stamp
-                print time.strftime ('End Time: %H:%M:%S')
-                
-            elif event.type == QUIT or (event.type == KEYDOWN and shotTaken):
-                # Exit on second keyboard event
-                sys.exit(0)
-
-        # Write the finished image to a file
-        out = adaptors.Ipl2PIL(im)
-        pg_img = pygame.image.frombuffer(out.tostring(), out.size, out.mode)
-        pygame.image.save(pg_img,"etch.jpg")
-
-        # Display the finished image
-        displayImage(im)
+    sys.exit(main())
