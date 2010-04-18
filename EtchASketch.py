@@ -17,7 +17,7 @@ import pygame
 DEFAULT_INPUT_IMAGE = 'input.jpg'
 DEFAULT_OUTPUT_HEIGHT = 480
 DEFAULT_OUTPUT_WIDTH = 640
-DEFAULT_PIXEL_SCALE = 20
+DEFAULT_PIXEL_SCALE = 10
 DEFAULT_SERIAL_PORT = -1
 #DEFAULT_SERIAL_PORT = '/dev/ttyUSB0'
 
@@ -30,11 +30,6 @@ opencv.cvNot(etch,etch)
 curX = 0
 curY = 0
 
-# Used by pygame for the window and image displays
-pygame.init()
-window = pygame.display.set_mode((640,480))
-pygame.display.set_caption("Etch-A-Sketch")
-screen = pygame.display.get_surface()
 
 
 def displayImage(image):
@@ -86,30 +81,12 @@ def draw(c):
                 elif curX >= 640:
                     print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
                     curX = 639
-                '''
-                if c in [1,3,7,9]:
-                    opencv.cvSet2D(etch,curY,curX,[0,0,0])
-                    curX += dx-1
-                    curY += dy-1
-                    if curY < 0:
-                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
-                        curY = 0
-                    elif curY >= 480:
-                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
-                        curY = 479
-                    if curX < 0:
-                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
-                        curX = 0
-                    elif curX >= 640:
-                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
-                        curX = 639
-                '''
                 opencv.cvSet2D(etch,curY,curX,[0,0,0])
 
 
 def line(length,dir=6,inv=False):
     if inv and (dir%3 is 0):
-        dir = dir-2
+        dir = dir-2 
     elif inv and (dir in [1,4,7]):
         dir = dir+2
     for i in range(int(length)):
@@ -135,8 +112,7 @@ def triangle(size,inv=False):
     @param size length bounding square's side
     @param inv  inv    invert the x direction
     '''
-    seg = (int((size**2))**0.5)
-    line(seg/2,3,inv)
+    line(size,3,inv)
     line(size,8)
 
 def semioct(size,inv=False):
@@ -147,12 +123,14 @@ def semioct(size,inv=False):
     @param size length bounding square's side
     @param inv  inv    invert the x direction
     '''
-    seg = int((5-4.472136)*size)
-    line(seg,2)
-    line(seg/2,3,inv)
-    line(seg,6,inv)
-    line(seg/2,9,inv)
-    line(seg,8)
+    vert = int((2*size)/3)
+    cap = int(size/3)
+    e = int(size-(3.0*cap))
+    line(vert+e,2)
+    line(cap,3,inv)
+    line(cap+e,6,inv)
+    line(cap,9,inv)
+    line(vert+e,8)
     
 def drawPixel(r,g,b,size,inv=False):
     """
@@ -165,13 +143,10 @@ def drawPixel(r,g,b,size,inv=False):
     @param  size   size of the pixel after drawn
     @param  inv    reverse drawing direction
     """
-    # backup
-    line(size/2,4,inv)
     # red data
     s = int((r/255.0)*size)
     l = (size-s)/2
     line(l,6,inv)
-    print "triangle"
     triangle(s,inv)
     e = size-(s+(2*l));
     line(l+e,6,inv)
@@ -179,7 +154,6 @@ def drawPixel(r,g,b,size,inv=False):
     s = int((b/255.0)*size)
     l = (size-s)/2
     line(l,4,inv)
-    print "semioct"
     semioct(s,not inv)
     e = size-(s+(2*l));
     line(l+e,4,inv)
@@ -187,10 +161,11 @@ def drawPixel(r,g,b,size,inv=False):
     s = int((g/255.0)*size)
     l = (size-s)/2
     line(l,6,inv)
-    print "square"
     square(s,inv)
     e = size-(s+(2*l));
     line(l+e,6,inv)
+    # backup
+    line(size/2,4,inv)
 
 def drawImage(image,h,w,psize):
     """
@@ -203,18 +178,19 @@ def drawImage(image,h,w,psize):
     @param  w       integer representing the width of the output surface
     @param  psize   ammount that each pixel in the input image is scaled up
     """
-    h = h/(psize/2)
-    w = w/(psize/2)
+    h = h/(psize/2)-(psize/2)
+    w = w/(psize/2)-(psize/2)
     size = opencv.cvSize(w,h)
     scaled = opencv.cvCreateImage(size,8,3)
-    opencv.cvResize(image,scaled)
+    opencv.cvResize(image,scaled,opencv.CV_INTER_LINEAR)
 
     # Draw each pixel in the image
+    xr = range(scaled.width)
     for y in range(scaled.height):
-        inv = y%2
-        for x in range(scaled.width):
+        xr.reverse()
+        for x in xr:
             s = opencv.cvGet2D(scaled,y,x)
-            drawPixel(s[0],s[1],s[2],psize,inv)
+            drawPixel(s[0],s[1],s[2],psize,(xr[0]>0))
         line(psize/2,2)
         displayImage(etch)
 
@@ -253,10 +229,22 @@ def main(argv=None):
     print time.strftime ('Start Time: %H:%M:%S')
 
     # Load the image
-    image = highgui.cvLoadImage(im);
+    image = highgui.cvLoadImage(im)
+    opencv.cvNot(image,image)
+    
+    # Used by pygame for the window and image displays
+    global window, screen
+    pygame.init()
+    window = pygame.display.set_mode((640,480))
+    pygame.display.set_caption("Etch-A-Sketch")
+    screen = pygame.display.get_surface()
 
     # Draw the image
     drawImage(image,h,w,psize)
+
+    # Show the image
+    displayImage(etch)
+    displayImage(etch)
 
     # Print end time stamp
     print time.strftime ('End Time: %H:%M:%S')
