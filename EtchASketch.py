@@ -190,7 +190,10 @@ def drawImage(image,h,w,psize):
         xr.reverse()
         for x in xr:
             s = opencv.cvGet2D(scaled,y,x)
-            drawPixel(s[0],s[1],s[2],psize,(xr[0]>0))
+            if ((s[0]+s[1]+s[2])/710.0 < 2/psize):
+                line(psize/2,6,(xr[0]>0))
+            else:
+                drawPixel(s[0],s[1],s[2],psize,(xr[0]>0))
         line(psize/2,2)
         displayImage(etch)
 
