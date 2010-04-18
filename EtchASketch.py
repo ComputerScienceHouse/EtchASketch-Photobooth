@@ -17,7 +17,7 @@ import pygame
 DEFAULT_INPUT_IMAGE = 'input.jpg'
 DEFAULT_OUTPUT_HEIGHT = 480
 DEFAULT_OUTPUT_WIDTH = 640
-DEFAULT_PIXEL_SCALE = 10
+DEFAULT_PIXEL_SCALE = 20
 DEFAULT_SERIAL_PORT = -1
 #DEFAULT_SERIAL_PORT = '/dev/ttyUSB0'
 
@@ -49,7 +49,7 @@ def displayImage(image):
     screen.blit(pg_img, (0,0))
 
 
-def send_serial(c,s=0.01):
+def sendSerial(c,s=0.01):
     """
     Move the cursor one unit in any numpad direction.
 
@@ -68,25 +68,54 @@ def draw(c):
     @param c numpad number representing direction
     """
     global curX, curY
-    numPad = [["7","4","1"],["8","5","2"],["9","6","3"]]
+    numPad = [[7,8,9],[4,5,6],[1,2,3]]
     for dy in range(len(numPad)):
         for dx in range(len(numPad[dy])):
-            if numPad[dy][dx] is str(c):
-                curX += dx
-                curY -= dy
+            if numPad[dy][dx] is c:
+                curX += dx-1
+                curY += dy-1
+                if curY < 0:
+                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                    curY = 0
+                elif curY >= 480:
+                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                    curY = 479
+                if curX < 0:
+                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                    curX = 0
+                elif curX >= 640:
+                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                    curX = 639
+                '''
+                if c in [1,3,7,9]:
+                    opencv.cvSet2D(etch,curY,curX,[0,0,0])
+                    curX += dx-1
+                    curY += dy-1
+                    if curY < 0:
+                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                        curY = 0
+                    elif curY >= 480:
+                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                        curY = 479
+                    if curX < 0:
+                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                        curX = 0
+                    elif curX >= 640:
+                        print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
+                        curX = 639
+                '''
+                opencv.cvSet2D(etch,curY,curX,[0,0,0])
 
-    opencv.cvSet2D(etch,curY,curX,[0,0,0])
-    displayImage(etch)
 
 def line(length,dir=6,inv=False):
-    if (dir%3 is 0):
+    if inv and (dir%3 is 0):
         dir = dir-2
-    elif [1,4,7].contains(dir):
+    elif inv and (dir in [1,4,7]):
         dir = dir+2
-    for i in range(length):
+    for i in range(int(length)):
         draw(dir)
-        if ser is not None:
-            send_serial(dir)
+     #   if ser:
+     #       sendSerial(dir)
 
 def square(size,inv=False):
     '''
@@ -95,9 +124,9 @@ def square(size,inv=False):
     @param size length bounding square's side
     @param inv  inv    invert the x direction
     '''
-    line(size,8)
-    line(size,6,inv)
     line(size,2)
+    line(size,6,inv)
+    line(size,8)
 
 def triangle(size,inv=False):
     '''
@@ -106,9 +135,9 @@ def triangle(size,inv=False):
     @param size length bounding square's side
     @param inv  inv    invert the x direction
     '''
-    seg = ((size**2)/2)**(1/2)
-    line(seg/2,9,inv)
+    seg = (int((size**2))**0.5)
     line(seg/2,3,inv)
+    line(size,8)
 
 def semioct(size,inv=False):
     '''
@@ -118,12 +147,12 @@ def semioct(size,inv=False):
     @param size length bounding square's side
     @param inv  inv    invert the x direction
     '''
-    seg = 5.0+(size*4.472136) 
-    line(seg,8)
-    line(seg/2,9,inv)
-    line(seg,6,inv)
-    line(seg/2,3,inv)
+    seg = int((5-4.472136)*size)
     line(seg,2)
+    line(seg/2,3,inv)
+    line(seg,6,inv)
+    line(seg/2,9,inv)
+    line(seg,8)
     
 def drawPixel(r,g,b,size,inv=False):
     """
@@ -136,24 +165,32 @@ def drawPixel(r,g,b,size,inv=False):
     @param  size   size of the pixel after drawn
     @param  inv    reverse drawing direction
     """
+    # backup
+    line(size/2,4,inv)
     # red data
-    s = (r/255.0)*size
-    l = size-b/2.0
+    s = int((r/255.0)*size)
+    l = (size-s)/2
     line(l,6,inv)
+    print "triangle"
     triangle(s,inv)
-    line(l,6,inv)
+    e = size-(s+(2*l));
+    line(l+e,6,inv)
     # blue data
-    s = (b/255.0)*size
-    l = size-b/2.0
+    s = int((b/255.0)*size)
+    l = (size-s)/2
     line(l,4,inv)
-    semicircle(s,not inv)
-    line(l,4,inv)
+    print "semioct"
+    semioct(s,not inv)
+    e = size-(s+(2*l));
+    line(l+e,4,inv)
     # green data
-    s = (g/255.0)*size
-    l = size-b/2.0
+    s = int((g/255.0)*size)
+    l = (size-s)/2
     line(l,6,inv)
+    print "square"
     square(s,inv)
-    line(l,6,inv)
+    e = size-(s+(2*l));
+    line(l+e,6,inv)
 
 def drawImage(image,h,w,psize):
     """
@@ -166,8 +203,8 @@ def drawImage(image,h,w,psize):
     @param  w       integer representing the width of the output surface
     @param  psize   ammount that each pixel in the input image is scaled up
     """
-    h = h/psize
-    w = w/psize
+    h = h/(psize/2)
+    w = w/(psize/2)
     size = opencv.cvSize(w,h)
     scaled = opencv.cvCreateImage(size,8,3)
     opencv.cvResize(image,scaled)
@@ -178,6 +215,8 @@ def drawImage(image,h,w,psize):
         for x in range(scaled.width):
             s = opencv.cvGet2D(scaled,y,x)
             drawPixel(s[0],s[1],s[2],psize,inv)
+        line(psize/2,2)
+        displayImage(etch)
 
 def main(argv=None):
     if argv is None:
@@ -207,6 +246,8 @@ def main(argv=None):
     global ser
     if serialport is not -1:
         ser = serial.Serial(serialport, 9600, timeout=1)
+    else:
+        ser = 0
 
     # Print starting time stamp
     print time.strftime ('Start Time: %H:%M:%S')
@@ -219,6 +260,14 @@ def main(argv=None):
 
     # Print end time stamp
     print time.strftime ('End Time: %H:%M:%S')
+
+    # loop
+    while(1):
+        events = pygame.event.get()
+        for event in events:
+            if event.type == QUIT or (event.type == KEYDOWN):
+                # Exit on keyboard event
+                sys.exit(0)
 
 if __name__ == "__main__":
     sys.exit(main())
