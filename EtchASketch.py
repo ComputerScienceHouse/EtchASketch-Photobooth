@@ -21,27 +21,29 @@ DEFAULT_PIXEL_SCALE = 10
 DEFAULT_SERIAL_PORT = -1
 #DEFAULT_SERIAL_PORT = '/dev/ttyUSB0'
 
-## Global Variables ###
-
-# Used by move cursor to track and display cursor movements
-etch = opencv.cvCreateImage(opencv.cvSize(640,480), opencv.IPL_DEPTH_8U, 3)
-opencv.cvZero(etch)
-opencv.cvNot(etch,etch)
-curX = 0
-curY = 0
 
 
 
-def displayImage(image):
+def displayImage(image,x=0):
     """
     Displays an opencv image on the pygame surface.
 
     @param  image   the opencv image to display
     """
+    global window, screen
+    # Initialize pygame if not already initialized
+    if not pygame.display.get_init():
+        pygame.init()
+        window = pygame.display.set_mode((640,480))
+        pygame.display.set_caption("Etch-A-Sketch")
+        screen = pygame.display.get_surface()
+
     pilim = adaptors.Ipl2PIL(image)
     pg_img = pygame.image.frombuffer(pilim.tostring(), pilim.size, pilim.mode)
     pygame.display.flip()
     screen.blit(pg_img, (0,0))
+    if (not x):
+        displayImage(image,1)
 
 
 def sendSerial(c,s=0.01):
@@ -63,6 +65,7 @@ def draw(c):
     @param c numpad number representing direction
     """
     global curX, curY
+
     numPad = [[7,8,9],[4,5,6],[1,2,3]]
     for dy in range(len(numPad)):
         for dx in range(len(numPad[dy])):
@@ -81,18 +84,26 @@ def draw(c):
                 elif curX >= 640:
                     print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
                     curX = 639
-                opencv.cvSet2D(etch,curY,curX,[0,0,0])
+                opencv.cvSet2D(output,curY,curX,[0,0,0])
 
 
 def line(length,dir=6,inv=False):
+    '''
+    Draw a line of length in the numpad direction dir.
+
+    @param length  the length of the line
+    @param dir     integer 1-9 representing numpad direction
+    @param inv     if true, this inverts the x direction
+    '''
+    global ser
     if inv and (dir%3 is 0):
         dir = dir-2 
     elif inv and (dir in [1,4,7]):
         dir = dir+2
     for i in range(int(length)):
         draw(dir)
-     #   if ser:
-     #       sendSerial(dir)
+        if not (ser is 0):
+            sendSerial(dir)
 
 def square(size,inv=False):
     '''
@@ -144,21 +155,21 @@ def drawPixel(r,g,b,size,inv=False):
     @param  inv    reverse drawing direction
     """
     # red data
-    s = int((r/255.0)*size)
+    s = int(r*size)
     l = (size-s)/2
     line(l,6,inv)
     triangle(s,inv)
     e = size-(s+(2*l));
     line(l+e,6,inv)
     # blue data
-    s = int((b/255.0)*size)
+    s = int(b*size)
     l = (size-s)/2
     line(l,4,inv)
     semioct(s,not inv)
     e = size-(s+(2*l));
     line(l+e,4,inv)
     # green data
-    s = int((g/255.0)*size)
+    s = int(g*size)
     l = (size-s)/2
     line(l,6,inv)
     square(s,inv)
@@ -187,15 +198,16 @@ def drawImage(image,h,w,psize):
     # Draw each pixel in the image
     xr = range(scaled.width)
     for y in range(scaled.height):
-        xr.reverse()
         for x in xr:
             s = opencv.cvGet2D(scaled,y,x)
-            if ((s[0]+s[1]+s[2])/710.0 < 2/psize):
+            if ((s[0]+s[1]+s[2])/710.0 < 2.0/psize):
                 line(psize/2,6,(xr[0]>0))
             else:
-                drawPixel(s[0],s[1],s[2],psize,(xr[0]>0))
+                drawPixel(s[0]/255.0,s[1]/255.0,s[2]/255.0,psize,(xr[0]>0))
+        xr.reverse()
+        line(psize/2,6,(xr[0]>0))
         line(psize/2,2)
-        displayImage(etch)
+        displayImage(output)
 
 def main(argv=None):
     if argv is None:
@@ -221,8 +233,10 @@ def main(argv=None):
     else:
         serialport = argv[5]
 
+    # declair globals
+    global ser, output, curX, curY
+
     # Open serial connection
-    global ser
     if serialport is not -1:
         ser = serial.Serial(serialport, 9600, timeout=1)
     else:
@@ -234,20 +248,19 @@ def main(argv=None):
     # Load the image
     image = highgui.cvLoadImage(im)
     opencv.cvNot(image,image)
-    
-    # Used by pygame for the window and image displays
-    global window, screen
-    pygame.init()
-    window = pygame.display.set_mode((640,480))
-    pygame.display.set_caption("Etch-A-Sketch")
-    screen = pygame.display.get_surface()
 
+    # Create the output image
+    curX = 0
+    curY = 0
+    output = opencv.cvCreateImage(opencv.cvSize(w,h), opencv.IPL_DEPTH_8U, 3)
+    opencv.cvZero(output)
+    opencv.cvNot(output,output)
+    
     # Draw the image
     drawImage(image,h,w,psize)
 
     # Show the image
-    displayImage(etch)
-    displayImage(etch)
+    displayImage(output)
 
     # Print end time stamp
     print time.strftime ('End Time: %H:%M:%S')
