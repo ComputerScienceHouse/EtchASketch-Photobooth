@@ -212,23 +212,23 @@ def drawImage(image,h,w,psize):
 def main(argv=None):
     if argv is None:
         argv = sys.argv
-    if len(argv) <= 1:
+    if len(argv) <= 1 or argv[1] is "-":
         im = DEFAULT_INPUT_IMAGE
     else:
         im = argv[1]
-    if len(argv) <= 2:
-        h = DEFAULT_OUTPUT_HEIGHT
-    else:
-        h = argv[2]
-    if len(argv) <= 3:
-        w = DEFAULT_OUTPUT_WIDTH
-    else:
-        w = argv[3]
-    if len(argv) <= 4:
+    if len(argv) <= 2 or argv[2] is "-":
         psize = DEFAULT_PIXEL_SCALE
     else:
-        psize = argv[4]
-    if len(argv) <= 5:
+        psize = int(argv[2])
+    if len(argv) <= 3 or argv[3] is "-":
+        h = DEFAULT_OUTPUT_HEIGHT
+    else:
+        h = int(argv[3])
+    if len(argv) <= 4 or argv[4] is "-":
+        w = DEFAULT_OUTPUT_WIDTH
+    else:
+        w = int(argv[4])
+    if len(argv) <= 5 or argv[5] is "-":
         serialport = DEFAULT_SERIAL_PORT
     else:
         serialport = argv[5]
