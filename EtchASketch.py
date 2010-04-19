@@ -17,7 +17,7 @@ import pygame
 DEFAULT_INPUT_IMAGE = 'input.jpg'
 DEFAULT_OUTPUT_HEIGHT = 480
 DEFAULT_OUTPUT_WIDTH = 640
-DEFAULT_PIXEL_SCALE = 4 
+DEFAULT_PIXEL_SCALE = 4
 DEFAULT_SERIAL_PORT = -1
 #DEFAULT_SERIAL_PORT = '/dev/ttyUSB0'
 
@@ -143,34 +143,31 @@ def semioct(size,inv=False):
     line(cap,9,inv)
     line(vert+e,8)
     
-def drawPixel(r,g,b,size,inv=False):
+def drawPixel(c,size,inv=False):
     """
     Draw a single pixel of the input image into a pixel of
     specified size.
 
-    @param  r      red color intensity (uint8)
-    @param  g      green color intensity (uint8)
-    @param  b      blue color intensity (uint8)
+    @param  c      list of 3 color intensities between 0 and 1
     @param  size   size of the pixel after drawn
     @param  inv    reverse drawing direction
     """
-    # red data
-    s = int(r*size)
-    l = size-s
-    line(l,6,inv)
-    triangle(s,inv)
-    # blue data
-    s = int(b*size)
-    l = (size-s)/2
-    line(l,4,inv)
-    semioct(s,not inv)
-    e = size-(s+(2*l));
-    line(l+e,4,inv)
-    # green data
-    s = int(g*size)
-    l = size-s
-    square(s,inv)
-    line(l,6,inv)
+    c = [int(j*size) for j in c]
+    c.sort()
+    c.reverse()
+    sp = (size-sum(c))/2
+    e = size-((2*sp)+sum(c))
+    if (sp >= 0):
+        line(sp,6,inv)
+    triangle(c[0],inv)
+    if (sp < 0):
+        line(abs(sp),4,inv)
+    semioct(c[1],inv)
+    if (sp < 0):
+        line(abs(sp+e),4,inv)
+    square(c[2],inv)
+    if (sp >= 0):
+        line(sp+e,6,inv)
 
 def drawImage(image,h,w,psize):
     """
@@ -187,7 +184,6 @@ def drawImage(image,h,w,psize):
     w = (w/psize)-2
     size = opencv.cvSize(w,h)
     scaled = opencv.cvCreateImage(size,8,3)
-    opencv.cvResize(image,scaled,opencv.CV_INTER_LINEAR)
     red = opencv.cvCreateImage(size,8,1)
     blue = opencv.cvCreateImage(size,8,1)
     green = opencv.cvCreateImage(size,8,1)
@@ -196,6 +192,7 @@ def drawImage(image,h,w,psize):
     opencv.cvEqualizeHist(green,green)
     opencv.cvEqualizeHist(blue,blue)
     opencv.cvMerge(red,green,blue,0,scaled)
+    opencv.cvResize(image,scaled,opencv.CV_INTER_LINEAR)
     opencv.cvNot(scaled,scaled)
 
     # Draw each pixel in the image
@@ -203,10 +200,11 @@ def drawImage(image,h,w,psize):
     for y in range(scaled.height):
         for x in xr:
             s = opencv.cvGet2D(scaled,y,x)
-            if ((s[0]+s[1]+s[2])/710.0 < 1.0/psize):
+            s = [s[j] for j in range(3)]
+            if (sum(s)/710.0 < 1.0/psize):
                 line(psize,6,(xr[0]>0))
             else:
-                drawPixel(s[0]/255.0,s[1]/255.0,s[2]/255.0,psize,(xr[0]>0))
+                drawPixel([j/255.0 for j in s],psize,(xr[0]>0))
         line(psize,2)
         xr.reverse()
         displayImage(output)
