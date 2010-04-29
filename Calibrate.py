@@ -75,18 +75,15 @@ def draw(c):
                 curX += dx-1
                 curY += dy-1
                 if curY < 0:
-                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
                     curY = 0
                 elif curY >= DEFAULT_OUTPUT_HEIGHT:
-                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
                     curY = DEFAULT_OUTPUT_HEIGHT-1 
                 if curX < 0:
-                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
                     curX = 0
                 elif curX >= DEFAULT_OUTPUT_WIDTH:
-                    print "Out of Bounds: ("+str(curX)+", "+str(curY)+")"
                     curX = DEFAULT_OUTPUT_WIDTH-1 
                 opencv.cvSet2D(output,curY,curX,[0,0,0])
+                #displayImage(output)
 
 def calibrate(dir):
     return SCALES[dir-1]
@@ -99,12 +96,15 @@ def line(length,dir=6,inv=False):
     @param dir     integer 1-9 representing numpad direction
     @param inv     if true, this inverts the x direction
     '''
-    global ser,last_dir
+    global ser,lastdir
     # Invert
     if inv and (dir%3 is 0):
         dir = dir-2 
     elif inv and (dir in [1,4,7]):
         dir = dir+2
+
+    # Calibrate
+    scale = calibrate(dir)
 
     # Backlash
     xdir = None
@@ -123,10 +123,6 @@ def line(length,dir=6,inv=False):
         if ydir+last_dir[1] is 0:
             [sendSerial(dir-((dir%3)-1)) for x in range(BACKLASHES[dir-(dir%3)])]
     last_dir = [xdir,ydir] 
-        
-
-    # Calibrate
-    scale = calibrate(dir)
 
     # Draw
     for i in range(int(length)):
@@ -139,18 +135,16 @@ def line(length,dir=6,inv=False):
             else:
                 sendSerial(dir)
 
-def square(size,invx=False,invy=0):
+def square(size,inv=False):
     '''
     Draw a square blip within a square.
 
     @param size length bounding square's side
     @param inv  inv    invert the x direction
-    @param invy invert the y direction
     '''
-
-    line(size,abs((10*invy)-2))
-    line(size,6,invx)
-    line(size,abs((10*invy)-8))
+    line(size,2)
+    line(size,6,inv)
+    line(size,8)
 
 def triangle(size,inv=False):
     '''
@@ -195,109 +189,82 @@ def drawPixel(c,size,inv=False):
     e = size-((2*sp)+sum(c))
     if (sp >= 0):
         line(sp,6,inv)
-    square(c[0],inv)
+    triangle(c[0],inv)
     if (sp < 0):
         line(abs(sp),4,inv)
-    square(c[1],inv,1)
+    semioct(c[1],inv)
     if (sp < 0):
         line(abs(sp+e),4,inv)
     square(c[2],inv)
     if (sp >= 0):
         line(sp+e,6,inv)
 
-def drawImage(image,h,w,psize):
-    """
-    Draw the image as a continuous line on a surface h by w "pixels" where 
-    each continuous line representation of a pixel in image is represented
-    on the output suface using psize by psize "pixels".
+def getFeedback():
+     events = pygame.event.get()
+     for event in events:
+         if event.type == QUIT:
+             exit() 
+         elif (event.type == KEYDOWN):
+             if (event.key == K_l):
+                 print "Backlash for L-R is at "+str(BACKLASHES[5]) 
+                 print "Enter new value: "
+                 BACKLASHES[5] = int(raw_input())
+             elif (event.key == K_k):
+                 print "Backlash for D-U is at "+str(BACKLASHES[7]) 
+                 print "Enter new value: "
+                 BACKLASHES[7] = int(raw_input())
+             elif (event.key == K_j):
+                 print "Backlash for U-D is at "+str(BACKLASHES[1]) 
+                 print "Enter new value: "
+                 BACKLASHES[1] = int(raw_input())
+             elif (event.key == K_h):
+                 print "Backlash for R-L is at "+str(BACKLASHES[3]) 
+                 print "Enter new value: "
+                 BACKLASHES[3] = int(raw_input())
 
-    @param  image   an opencv image with at least 3 channels
-    @param  h       integer representing the hight of the output surface
-    @param  w       integer representing the width of the output surface
-    @param  psize   ammount that each pixel in the input image is scaled up
+def calibrationRoutine(s):
     """
-    h = (h/psize)-2
-    w = (w/psize)-2
-    size = opencv.cvSize(w,h)
-    scaled = opencv.cvCreateImage(size,8,3)
-    red = opencv.cvCreateImage(size,8,1)
-    blue = opencv.cvCreateImage(size,8,1)
-    green = opencv.cvCreateImage(size,8,1)
-    opencv.cvSplit(scaled,blue,green,red,None)
-    opencv.cvEqualizeHist(red,red)
-    opencv.cvEqualizeHist(green,green)
-    opencv.cvEqualizeHist(blue,blue)
-    opencv.cvMerge(red,green,blue,None,scaled)
-    opencv.cvResize(image,scaled,opencv.CV_INTER_LINEAR)
-    opencv.cvNot(scaled,scaled)
+    Runs a routine that prompts the user to correct the error.
 
-    # Draw each pixel in the image
-    xr = range(scaled.width)
-    for y in range(scaled.height):
-        for x in xr:
-            s = opencv.cvGet2D(scaled,y,x)
-            s = [s[j] for j in range(3)]
-            if (sum(s)/710.0 < 1.0/psize):
-                line(psize,6,(xr[0]>0))
-            else:
-                drawPixel([j/255.0 for j in s],psize,(xr[0]>0))
-        line(psize,2)
-        xr.reverse()
-        displayImage(output)
-        events = pygame.event.get()
-        for event in events:
-            if event.type == QUIT:
-		exit()
+    @param  s  size of each line
+    """
+    s=s+0.00
+
+    while 1:
+        [line(s,i) for i in [2,6,8,4]]
+        getFeedback()
+        s += 20
+
 
 def main(argv=None):
-    if argv is None:
-        argv = sys.argv
-    if len(argv) <= 1 or argv[1] is "-":
-        im = DEFAULT_INPUT_IMAGE
-    else:
-        im = argv[1]
-    if len(argv) <= 2 or argv[2] is "-":
-        psize = DEFAULT_PIXEL_SCALE
-    else:
-        psize = int(argv[2])
-    if len(argv) <= 3 or argv[3] is "-":
-        h = DEFAULT_OUTPUT_HEIGHT
-    else:
-        h = int(argv[3])
-    if len(argv) <= 4 or argv[4] is "-":
-        w = DEFAULT_OUTPUT_WIDTH
-    else:
-        w = int(argv[4])
-    if len(argv) <= 5 or argv[5] is "-":
-        serialport = DEFAULT_SERIAL_PORT
-    else:
-        serialport = argv[5]
 
     # declair globals
     global ser, output, curX, curY, last_dir
 
     # Open serial connection
-    if serialport is not -1:
-        ser = serial.Serial(serialport, 9600, timeout=1)
-    else:
-        ser = 0
+    ser = serial.Serial(DEFAULT_SERIAL_PORT, 9600, timeout=1)
     last_dir = 6
 
     # Print starting time stamp
     print time.strftime ('Start Time: %H:%M:%S')
 
-    # Load the image
-    image = highgui.cvLoadImage(im)
-
     # Create the output image
     curX = 0
     curY = 0
-    output = opencv.cvCreateImage(opencv.cvSize(w,h), opencv.IPL_DEPTH_8U, 3)
+    output = opencv.cvCreateImage(opencv.cvSize(DEFAULT_OUTPUT_WIDTH,DEFAULT_OUTPUT_HEIGHT), opencv.IPL_DEPTH_8U, 3)
     opencv.cvZero(output)
     opencv.cvNot(output,output)
+
+    global window, screen
+    # Initialize pygame if not already initialized
+    if not pygame.display.get_init():
+        pygame.init()
+        window = pygame.display.set_mode((DEFAULT_OUTPUT_WIDTH,DEFAULT_OUTPUT_HEIGHT))
+        pygame.display.set_caption("Etch-A-Sketch")
+        screen = pygame.display.get_surface()
     
     # Draw the image
-    drawImage(image,h,w,psize)
+    calibrationRoutine(200)
 
     # Show the image
     displayImage(output)
