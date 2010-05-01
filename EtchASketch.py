@@ -20,8 +20,8 @@ DEFAULT_OUTPUT_WIDTH = 960
 DEFAULT_PIXEL_SCALE = 4
 #DEFAULT_SERIAL_PORT = -1
 DEFAULT_SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A70063dg-if00-port0"
-SCALES = [1,.799,1,.799,1,1,1,1,1]
-BACKLASHES = [0,11,0,13,0,10,0,11,0]
+BACKLASHES = [0,6,0,13,0,16,0,6,0]
+SCALES = [1,.799,1,0.7655180952381,1,0.95809523809524,1,1,1]
 
 
 
@@ -117,12 +117,18 @@ def line(length,dir=6,inv=False):
         ydir = -1
     elif dir > 6:
         ydir = 1
-    if xdir is not None and ydir is not None:
-        if xdir+last_dir[0] is 0:
-            [sendSerial(5+xdir) for x in range(BACKLASHES[4+xdir])]
-        if ydir+last_dir[1] is 0:
-            [sendSerial(dir-((dir%3)-1)) for x in range(BACKLASHES[dir-(dir%3)])]
-    last_dir = [xdir,ydir] 
+    if last_dir[0] is not None and xdir is not None and xdir+last_dir[0] == 0:
+        print "backlash in x:", last_dir[0]
+        [sendSerial(5+xdir) for x in range(BACKLASHES[4+xdir])]
+    if last_dir[0] is not None and ydir is not None and ydir+last_dir[1] == 0:
+        print "backlash in y:", last_dir[1]
+        [sendSerial(dir) for x in range(BACKLASHES[dir-1])]
+    print "last dir was:", last_dir
+    if xdir is not None:
+      last_dir[0] = xdir
+    if ydir is not None:
+      last_dir[1] = ydir
+    print "last dir is now:", last_dir
         
 
     # Calibrate

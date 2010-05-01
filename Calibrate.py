@@ -20,8 +20,13 @@ DEFAULT_OUTPUT_WIDTH = 960
 DEFAULT_PIXEL_SCALE = 4
 #DEFAULT_SERIAL_PORT = -1
 DEFAULT_SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A70063dg-if00-port0"
-SCALES = [1,.799,1,.799,1,1,1,1,1]
-BACKLASHES = [0,11,0,13,0,10,0,11,0]
+# height 1.006; width 1.05; ratio 0.958
+# width 0.915; height 0.909; ratio 0.993
+#BACKLASHES = [0,14,0,13,0,10,0,11,0]
+#SCALES = [1,.87330,1,.67553,1,.99178,1,1,1]
+#BACKLASHES = [0,14,0,35,0,14,0,24,0]
+BACKLASHES = [0,6,0,13,0,16,0,6,0]
+SCALES = [1,.799,1,0.7655180952381,1,0.95809523809524,1,1,1]
 
 
 
@@ -96,7 +101,7 @@ def line(length,dir=6,inv=False):
     @param dir     integer 1-9 representing numpad direction
     @param inv     if true, this inverts the x direction
     '''
-    global ser,lastdir
+    global ser,last_dir
     # Invert
     if inv and (dir%3 is 0):
         dir = dir-2 
@@ -117,12 +122,18 @@ def line(length,dir=6,inv=False):
         ydir = -1
     elif dir > 6:
         ydir = 1
-    if xdir is not None and ydir is not None:
-        if xdir+last_dir[0] is 0:
-            [sendSerial(5+xdir) for x in range(BACKLASHES[4+xdir])]
-        if ydir+last_dir[1] is 0:
-            [sendSerial(dir-((dir%3)-1)) for x in range(BACKLASHES[dir-(dir%3)])]
-    last_dir = [xdir,ydir] 
+    if last_dir[0] is not None and xdir is not None and xdir+last_dir[0] == 0:
+        print "backlash in x:", last_dir[0]
+        [sendSerial(5+xdir) for x in range(BACKLASHES[4+xdir])]
+    if last_dir[0] is not None and ydir is not None and ydir+last_dir[1] == 0:
+        print "backlash in y:", last_dir[1]
+        [sendSerial(dir) for x in range(BACKLASHES[dir-1])]
+    print "last dir was:", last_dir
+    if xdir is not None:
+      last_dir[0] = xdir
+    if ydir is not None:
+      last_dir[1] = ydir
+    print "last dir is now:", last_dir
 
     # Draw
     for i in range(int(length)):
@@ -231,7 +242,7 @@ def calibrationRoutine(s):
     s=s+0.00
 
     while 1:
-        [line(s,i) for i in [2,6,8,4]]
+        [line(s,i) for i in [8,4,2,6]]
         getFeedback()
         s += 20
 
@@ -243,7 +254,7 @@ def main(argv=None):
 
     # Open serial connection
     ser = serial.Serial(DEFAULT_SERIAL_PORT, 9600, timeout=1)
-    last_dir = 6
+    last_dir = [None, None]
 
     # Print starting time stamp
     print time.strftime ('Start Time: %H:%M:%S')
@@ -264,7 +275,7 @@ def main(argv=None):
         screen = pygame.display.get_surface()
     
     # Draw the image
-    calibrationRoutine(200)
+    calibrationRoutine(30)
 
     # Show the image
     displayImage(output)
