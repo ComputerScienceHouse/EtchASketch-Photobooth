@@ -19,7 +19,7 @@ DEFAULT_OUTPUT_HEIGHT = 720
 DEFAULT_OUTPUT_WIDTH = 960
 DEFAULT_PIXEL_SCALE = 4
 #DEFAULT_SERIAL_PORT = -1
-DEFAULT_SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A70063dg-if00-port0"
+DEFAULT_SERIAL_PORT = "/dev/ttyUSB0"
 BACKLASHES = [0,6,0,13,0,16,0,6,0]
 SCALES = [1,.799,1,0.7655180952381,1,0.95809523809524,1,1,1]
 
@@ -106,6 +106,9 @@ def line(length,dir=6,inv=False):
     elif inv and (dir in [1,4,7]):
         dir = dir+2
 
+    # Calibrate
+    scale = calibrate(dir)
+
     # Backlash
     xdir = None
     ydir = None
@@ -120,7 +123,7 @@ def line(length,dir=6,inv=False):
     if last_dir[0] is not None and xdir is not None and xdir+last_dir[0] == 0:
         print "backlash in x:", last_dir[0]
         [sendSerial(5+xdir) for x in range(BACKLASHES[4+xdir])]
-    if last_dir[0] is not None and ydir is not None and ydir+last_dir[1] == 0:
+    if last_dir[1] is not None and ydir is not None and ydir+last_dir[1] == 0:
         print "backlash in y:", last_dir[1]
         [sendSerial(dir) for x in range(BACKLASHES[dir-1])]
     print "last dir was:", last_dir
@@ -130,10 +133,6 @@ def line(length,dir=6,inv=False):
       last_dir[1] = ydir
     print "last dir is now:", last_dir
         
-
-    # Calibrate
-    scale = calibrate(dir)
-
     # Draw
     for i in range(int(length)):
         draw(dir)
@@ -197,19 +196,20 @@ def drawPixel(c,size,inv=False):
     c = [int(j*size) for j in c]
     c.sort()
     c.reverse()
-    sp = (size-sum(c))/2
-    e = size-((2*sp)+sum(c))
-    if (sp >= 0):
-        line(sp,6,inv)
-    square(c[0],inv)
-    if (sp < 0):
-        line(abs(sp),4,inv)
-    square(c[1],inv,1)
-    if (sp < 0):
-        line(abs(sp+e),4,inv)
-    square(c[2],inv)
-    if (sp >= 0):
-        line(sp+e,6,inv)
+    line(size/2,6,inv)
+    line(c[0],2)
+    line(c[0],6,inv)
+    line(c[0],8)
+    line(c[0],4,inv)
+    line(c[1],8)
+    line(c[1],6,inv)
+    line(c[1],2)
+    line(c[1],4,inv)
+    line(c[2],2)
+    line(c[2],6,inv)
+    line(c[2],8)
+    line(c[2],4,inv)
+    line(size/2,6,inv)
 
 def drawImage(image,h,w,psize):
     """
@@ -287,7 +287,7 @@ def main(argv=None):
         ser = serial.Serial(serialport, 9600, timeout=1)
     else:
         ser = 0
-    last_dir = 6
+    last_dir = [None,None]
 
     # Print starting time stamp
     print time.strftime ('Start Time: %H:%M:%S')

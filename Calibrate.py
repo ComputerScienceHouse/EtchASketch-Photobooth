@@ -125,7 +125,7 @@ def line(length,dir=6,inv=False):
     if last_dir[0] is not None and xdir is not None and xdir+last_dir[0] == 0:
         print "backlash in x:", last_dir[0]
         [sendSerial(5+xdir) for x in range(BACKLASHES[4+xdir])]
-    if last_dir[0] is not None and ydir is not None and ydir+last_dir[1] == 0:
+    if last_dir[1] is not None and ydir is not None and ydir+last_dir[1] == 0:
         print "backlash in y:", last_dir[1]
         [sendSerial(dir) for x in range(BACKLASHES[dir-1])]
     print "last dir was:", last_dir
@@ -146,16 +146,18 @@ def line(length,dir=6,inv=False):
             else:
                 sendSerial(dir)
 
-def square(size,inv=False):
+def square(size,invx=False,invy=0):
     '''
     Draw a square blip within a square.
 
     @param size length bounding square's side
     @param inv  inv    invert the x direction
+    @param invy invert the y direction
     '''
-    line(size,2)
-    line(size,6,inv)
-    line(size,8)
+
+    line(size,abs((10*invy)-2))
+    line(size,6,invx)
+    line(size,abs((10*invy)-8))
 
 def triangle(size,inv=False):
     '''
@@ -199,16 +201,18 @@ def drawPixel(c,size,inv=False):
     sp = (size-sum(c))/2
     e = size-((2*sp)+sum(c))
     if (sp >= 0):
-        line(sp,6,inv)
-    triangle(c[0],inv)
+        line(sp+1,6,inv)
+        line(1,4,inv)
+    square(c[0],inv)
     if (sp < 0):
         line(abs(sp),4,inv)
-    semioct(c[1],inv)
+    square(c[1],inv)
     if (sp < 0):
         line(abs(sp+e),4,inv)
     square(c[2],inv)
     if (sp >= 0):
-        line(sp+e,6,inv)
+        line(1,4,inv)
+        line(sp+e+1,6,inv)
 
 def getFeedback():
      events = pygame.event.get()
@@ -242,9 +246,10 @@ def calibrationRoutine(s):
     s=s+0.00
 
     while 1:
-        [line(s,i) for i in [8,4,2,6]]
+        #[line(s,i) for i in [8,4,2,6]]
+        drawPixel([1,1,1],s,1)
         getFeedback()
-        s += 20
+        #s += 20
 
 
 def main(argv=None):
@@ -275,7 +280,7 @@ def main(argv=None):
         screen = pygame.display.get_surface()
     
     # Draw the image
-    calibrationRoutine(30)
+    calibrationRoutine(60)
 
     # Show the image
     displayImage(output)
