@@ -201,6 +201,14 @@ def drawPixel(c,size,inv=False):
     line(c[0],6,inv)
     line(c[0],8)
     line(c[0],4,inv)
+    line(c[0],8)
+    line(c[0],6,inv)
+    line(c[0],2)
+    line(c[0],4,inv)
+    line(c[1],2)
+    line(c[1],6,inv)
+    line(c[1],8)
+    line(c[1],4,inv)
     line(c[1],8)
     line(c[1],6,inv)
     line(c[1],2)
@@ -208,6 +216,10 @@ def drawPixel(c,size,inv=False):
     line(c[2],2)
     line(c[2],6,inv)
     line(c[2],8)
+    line(c[2],4,inv)
+    line(c[2],8)
+    line(c[2],6,inv)
+    line(c[2],2)
     line(c[2],4,inv)
     line(size/2,6,inv)
 
@@ -239,14 +251,21 @@ def drawImage(image,h,w,psize):
 
     # Draw each pixel in the image
     xr = range(scaled.width)
+    whitespace = 0
     for y in range(scaled.height):
         for x in xr:
             s = opencv.cvGet2D(scaled,y,x)
             s = [s[j] for j in range(3)]
             if (sum(s)/710.0 < 1.0/psize):
-                line(psize,6,(xr[0]>0))
+                whitespace = whitespace+psize
             else:
+                if whitespace is not 0:
+                    line(whitespace,6,(xr[0]>0))
+                    whitespace = 0
                 drawPixel([j/255.0 for j in s],psize,(xr[0]>0))
+        if whitespace is not 0:
+            line(whitespace,6,(xr[0]>0))
+            whitespace = 0
         line(psize,2)
         xr.reverse()
         displayImage(output)
